@@ -155,3 +155,87 @@ def lib_check_qch(qch,G,ordering):
     return
 
 ##################################################
+
+def lib_quantum_coloring_to_gameplay(qch,a,b):
+    """
+    Takes a quantum coloring of a graph (in matrix form and all) and plays the quantum coloring "game" with Alice and Bob and a ref.
+
+    Args:
+    - G: A graph.
+    - qch: A quantum coloring of that graph.
+    - vecs: List of vectors for orthogonal representation of the graph.
+    - a: Query vertex for Alice.
+    - b: Query vertex for Bob.
+
+    Returns:
+    - Alice's answer color.
+    - Bob's answer color.
+    """
+
+    #Gets the measurements associated with the query vertices.
+    E = qch[a] #The set of POVMs associated to Alice's vertex
+    F = qch[b] #And for Bob
+
+    d = len(qch[0][0][0]) #dimension of coloring
+    c = len(qch[0]) #quantum chromatic number
+
+    #The "maximally entangled state" is the normalized all ones vector. Calling this |ψ>
+    S0 = lib_make_standard_basis_vectors(d)
+    st = sum(S0)/(sum(S0)).norm()
+
+    
+    #Measure probabilities of outcomes. For each measure E_m in {E}, apply that to the entangled state.
+    #Then you get that the probability of getting outcome m when measuring the given state |ψ> is <ψ|E_m|ψ>.
+    #Measuring a quantum state inherently changes it, and that new state is (E_m|ψ>) / (sqrt(<ψ|E_m|ψ>)).
+    
+    #We'll first have Alice measure the entangled state with her POVMs, and gather a list of the possible outcome states, as well as their probabilities. Then we'll generate a random number and use it to decide which of the possible outcome states is the one that "actually happened" (since we don't have a quantum computer, this is the best I can do right now). The m associated with the E_m|ψ> that "actually happened" is Alice's answer.
+    #Then we'll take that outcome state E_m|ψ> and have Bob measure it with his POVMs. Similar to Alice's case, we'll collect lists of the possible outcome states and their probabilities, and use a generated random number to decide which of those states is the one that "actually happened". The m associated with the F_m|ψ> that "actually happened" is Bob's answer.
+
+    #For all m, gather the list of E_m|ψ> and <ψ|E_m|ψ>
+    newst1s = [] 
+    pr_newst1s = []
+    for j in range(c):
+        a_pr = st.transpose()*E[j]*st 
+        newst = E[j]*st
+        pr_newst1s.append(a_pr)
+        newst1s.append(newst)
+    
+
+    #Decide which state we want (randomly)
+    #Cumulative probabilities for Alice and Bob's states. This is not physics or anything, this is me not really knowing how to code.
+    rand_a = uniform(0,1)
+    a_cum_probs = []
+    for j in range(4):
+        a_cum_probs.append(sum(pr_newst1s[k] for k in range(j+1)))
+    for j in range(4):
+        if rand_a <= a_cum_probs[j]:
+            newst1 = (newst1s[j])/(newst1s[j].norm())
+            alice_ans = j
+            del a_cum_probs
+            break
+
+    #That chosen newst1 = E_m|ψ> is Alice and Bob's entangled state after Alice applies her unitary measurement to it.
+    #Now Bob will apply his unitary measurement to that new state to get his answer.
+    newst2s = []
+    pr_newst2s = []
+    for j in range(4):        
+        b_pr = newst1.transpose()*F[j]*newst1   
+        newst2 = F[j]*newst1
+        
+        pr_newst2s.append(b_pr)
+        newst2s.append(newst2)
+
+    #That thing again where we make a random number and use it to choose Bob's state, but I can't code so I have to do it like this.
+    rand_b = uniform(0,1)
+    b_cum_probs = []
+    for j in range(4):
+        b_cum_probs.append(sum(pr_newst2s[k] for k in range(j+1)))
+    for j in range(4):
+        if rand_b <= b_cum_probs[j]:
+            newst2 = (newst2s[j])/(newst2s[j].norm())
+            bob_ans = j
+            break
+    
+    return alice_ans,bob_ans
+
+##################################################
